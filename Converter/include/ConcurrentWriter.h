@@ -13,18 +13,19 @@
 #include "unsuck/unsuck.hpp"
 #include "converter_utils.h"
 
-using std::shared_ptr;
-using std::string;
-using std::unordered_map;
-using std::vector;
-using std::thread;
-using std::mutex;
-using std::lock_guard;
+using std::atomic_int64_t;
 using std::fstream;
 using std::ios;
-using std::atomic_int64_t;
+using std::lock_guard;
+using std::mutex;
+using std::shared_ptr;
+using std::string;
+using std::thread;
+using std::unordered_map;
+using std::vector;
 
-struct ConcurrentWriter {
+struct ConcurrentWriter
+{
 
 	unordered_map<string, vector<shared_ptr<Buffer>>> todo;
 	unordered_map<string, int> locks;
@@ -41,20 +42,22 @@ struct ConcurrentWriter {
 
 	double tStart = 0;
 
-	ConcurrentWriter(size_t numThreads, State& state) {
+	ConcurrentWriter(size_t numThreads, State &state)
+	{
 		this->numThreads = numThreads;
 
 		this->tStart = now();
 
-		for (int64_t i = 0; i < numThreads; i++) {
-			threads.emplace_back([&]() {
-				flushThread();
-			});
+		for (int64_t i = 0; i < numThreads; i++)
+		{
+			threads.emplace_back([&]()
+								 { flushThread(); });
 		}
 
 		using namespace std::chrono_literals;
 
-		threads.emplace_back([&]() {
+		threads.emplace_back([&]()
+							 {
 			while (true) {
 
 				{
@@ -75,91 +78,92 @@ struct ConcurrentWriter {
 
 					state.name = "DISTRIBUTING";
 				}
-
-				
-
-				std::this_thread::sleep_for(100ms);
-			}
-		});
-
+			} });
 	}
 
-	~ConcurrentWriter() {
+	~ConcurrentWriter()
+	{
 		this->join();
 	}
 
-	void waitUntilMemoryBelow(int64_t maxMegabytesOutstanding) {
+	void waitUntilMemoryBelow(int64_t maxMegabytesOutstanding)
+	{
 
 		using namespace std::chrono_literals;
 
-		while (todoBytes / (1024 * 1024) > maxMegabytesOutstanding) {
-			std::this_thread::sleep_for(10ms);
+		while (todoBytes / (1024 * 1024) > maxMegabytesOutstanding)
+		{
+			std::this_thread::sleep_for(100ms);
 		}
-
 	}
 
-	void flushThread() {
+	void flushThread()
+	{
 
 		using namespace std::chrono_literals;
 
-		while (true) {
+		while (true)
+		{
 
 			string path = "";
 			vector<shared_ptr<Buffer>> work;
 
 			{
-				//auto tStart = now();
+				// auto tStart = now();
 				lock_guard<mutex> lockT(mtx_todo);
 				lock_guard<mutex> lockJ(mtx_join);
-				//auto duration = now() - tStart;
-				//if (duration > 0.01) {
+				// auto duration = now() - tStart;
+				// if (duration > 0.01) {
 				//	cout << "long lock duration: " + to_string(duration) << endl;
-				//}
+				// }
 
 				bool nothingTodo = todo.size() == 0;
 
-				if (nothingTodo && joinRequested) {
+				if (nothingTodo && joinRequested)
+				{
 					return;
-				} else {
+				}
+				else
+				{
 
 					auto it = todo.begin();
 
-					while (it != todo.end()) {
+					while (it != todo.end())
+					{
 
 						string path = it->first;
 
-						if (locks.find(path) == locks.end()) {
+						if (locks.find(path) == locks.end())
+						{
 							break;
 						}
 
 						it++;
 					}
 
-
-
-
-					if (it != todo.end()) {
+					if (it != todo.end())
+					{
 						path = it->first;
 						work = it->second;
 
 						todo.erase(it);
 						locks[path] = 1;
 					}
-
-					
 				}
 			}
 
 			// if no work available, sleep and try again later
-			if (work.size() == 0) {
+			if (work.size() == 0)
+			{
 				std::this_thread::sleep_for(10ms);
 				continue;
-			} 
+			}
 
 			fstream fout;
 			fout.open(path, ios::out | ios::app | ios::binary);
 
-			for (auto batch : work) {
+			for (auto batch : work)
+			{
 				fout.write(batch->data_char, batch->size);
 
 				todoBytes -= batch->size;
@@ -175,12 +179,11 @@ struct ConcurrentWriter {
 				auto itLocks = locks.find(path);
 				locks.erase(itLocks);
 			}
-
 		}
-
 	}
 
-	void write(string path, shared_ptr<Buffer> data) {
+	void write(string path, shared_ptr<Buffer> data)
+	{
 		lock_guard<mutex> lock(mtx_todo);
 
 		todoBytes += data->size;
@@ -188,27 +191,22 @@ struct ConcurrentWriter {
 		todo[path].push_back(data);
 	}
 
-	void join() {
+	void join()
+	{
 		{
 			lock_guard<mutex> lock(mtx_join);
 
-			//cout << "joinRequested" << endl;
+			// cout << "joinRequested" << endl;
 			joinRequested = true;
 		}
-		
 
-		for (auto& t : threads) {
+		for (auto &t : threads)
+		{
 			t.join();
 		}
 
 		threads.clear();
 
-		//cout << "writer joined \n";
-
+		// cout << "writer joined \n";
 	}
-
 };
-
-
-
-
