@@ -217,7 +217,7 @@ namespace ChunkRefiner
 	void refine(string targetDir, State &state)
 	{
 
-		int64_t maxPointsPerChunk = 1'000'000;
+		int64_t maxPointsPerChunk = defaultMaxPointsPerChunk;
 
 		printElapsedTime("refine start", 0);
 
