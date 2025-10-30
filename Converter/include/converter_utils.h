@@ -10,6 +10,7 @@
 #include <mutex>
 #include <atomic>
 #include <map>
+#include <cstdint>
 
 //#include "LasLoader/LasLoader.h"
 #include "unsuck/unsuck.hpp"
@@ -22,6 +23,8 @@ using std::lock_guard;
 using std::atomic_int64_t;
 
 namespace fs = std::filesystem;
+
+inline constexpr int64_t defaultBatchSize = 100'000;
 
 struct LASPointF2 {
 	int32_t x;
