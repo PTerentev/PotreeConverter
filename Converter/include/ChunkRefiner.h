@@ -5,13 +5,12 @@
 #include <algorithm>
 
 #include "converter_utils.h"
+#include "RuntimeConfig.h"
 
 using std::string;
 
 namespace ChunkRefiner
 {
-	auto numChunkerThreads = getCpuData().numProcessors;
-
 	struct Chunk
 	{
 		Vector3 min;
@@ -133,7 +132,7 @@ namespace ChunkRefiner
 
 		vector<vector<uint8_t>> chunkParts;
 
-		int64_t gridSize = 128;
+		int64_t gridSize = RuntimeConfig::GridSize;
 		vector<std::atomic_int32_t> counters(gridSize * gridSize * gridSize);
 
 		struct Task
@@ -143,7 +142,7 @@ namespace ChunkRefiner
 			int64_t numPoints = 0;
 		};
 
-		TaskPool<Task> pool(numChunkerThreads, [chunk, &chunkParts, attributes, &counters, gridSize](auto task)
+		TaskPool<Task> pool(RuntimeConfig::MaxThreadCount, [chunk, &chunkParts, attributes, &counters, gridSize](auto task)
 							{
 			vector<uint8_t> points = readBinaryFile(chunk->file, task->start, task->size);
 
@@ -189,7 +188,7 @@ namespace ChunkRefiner
 		int64_t start = 0;
 		while (pointsLeft > 0)
 		{
-			int64_t batchSize = std::min(defaultBatchSize, pointsLeft);
+			int64_t batchSize = std::min(RuntimeConfig::MaxBatchSize, pointsLeft);
 
 			auto task = make_shared<Task>();
 			task->numPoints = batchSize;
@@ -216,15 +215,12 @@ namespace ChunkRefiner
 
 	void refine(string targetDir, State &state)
 	{
-
-		int64_t maxPointsPerChunk = defaultMaxPointsPerChunk;
-
 		printElapsedTime("refine start", 0);
 
 		auto chunks = getChunks(targetDir);
 
 		auto bpp = chunks->attributes.bytes;
-		int64_t maxFilesize = maxPointsPerChunk * bpp;
+		int64_t maxFilesize = RuntimeConfig::MaxPointsPerChunk * bpp;
 
 		vector<shared_ptr<Chunk>> tooLargeChunks;
 

@@ -5,19 +5,19 @@
 
 #include "structures.h"
 #include "Attributes.h"
+#include "RuntimeConfig.h"
 
-
-
-struct SamplerRandom : public Sampler {
+struct SamplerRandom : public Sampler
+{
 
 	// subsample a local octree from bottom up
-	void sample(Node* node, Attributes attributes, double baseSpacing, 
-		function<void(Node*)> onNodeCompleted,
-		function<void(Node*)> onNodeDiscarded
-	) {
+	void sample(Node *node, Attributes attributes, double baseSpacing,
+				function<void(Node *)> onNodeCompleted,
+				function<void(Node *)> onNodeDiscarded)
+	{
 
-
-		struct Point {
+		struct Point
+		{
 			double x;
 			double y;
 			double z;
@@ -25,10 +25,13 @@ struct SamplerRandom : public Sampler {
 			int32_t childIndex;
 		};
 
-		function<void(Node*, function<void(Node*)>)> traversePost = [&traversePost](Node* node, function<void(Node*)> callback) {
-			for (auto child : node->children) {
+		function<void(Node *, function<void(Node *)>)> traversePost = [&traversePost](Node *node, function<void(Node *)> callback)
+		{
+			for (auto child : node->children)
+			{
 
-				if (child != nullptr && !child->sampled) {
+				if (child != nullptr && !child->sampled)
+				{
 					traversePost(child.get(), callback);
 				}
 			}
@@ -40,12 +43,13 @@ struct SamplerRandom : public Sampler {
 		Vector3 scale = attributes.posScale;
 		Vector3 offset = attributes.posOffset;
 
-		traversePost(node, [bytesPerPoint, baseSpacing, scale, offset, &onNodeCompleted, &onNodeDiscarded, attributes](Node* node) {
+		traversePost(node, [bytesPerPoint, baseSpacing, scale, offset, &onNodeCompleted, &onNodeDiscarded, attributes](Node *node)
+					 {
 			node->sampled = true;
 
 			int64_t numPoints = node->numPoints;
 
-			int64_t gridSize = 128;
+			int64_t gridSize = RuntimeConfig::GridSize;
 			thread_local vector<int64_t> grid(gridSize* gridSize* gridSize, -1);
 			thread_local int64_t iteration = 0;
 			iteration++;
@@ -227,9 +231,6 @@ struct SamplerRandom : public Sampler {
 			node->points = accepted;
 			node->numPoints = numAccepted;
 
-			return true;
-		});
+			return true; });
 	}
-
 };
-

@@ -15,6 +15,7 @@ set(HEADER_FILES
 	./Converter/include/ChunkRefiner.h
 	./Converter/include/ConcurrentWriter.h
 	./Converter/include/converter_utils.h
+	./Converter/include/RuntimeConfig.h
 	./Converter/include/indexer.h
 	./Converter/include/prototyping.h
 	./Converter/include/sampler_poisson.h
@@ -32,6 +33,7 @@ add_executable(PotreeConverter
 	./Converter/src/chunker_countsort_laszip.cpp
 	./Converter/src/indexer.cpp 
 	./Converter/src/main.cpp
+	./Converter/src/RuntimeConfig.cpp
 	./Converter/src/logger.cpp
 	./Converter/modules/LasLoader/LasLoader.cpp
 	./Converter/modules/unsuck/unsuck_platform_specific.cpp
@@ -106,4 +108,3 @@ add_custom_command(
 	COMMAND ${CMAKE_COMMAND} -E copy
 		${PROJECT_SOURCE_DIR}/README.md
 		$<TARGET_FILE_DIR:${PROJECT_NAME}>/README.md)
-

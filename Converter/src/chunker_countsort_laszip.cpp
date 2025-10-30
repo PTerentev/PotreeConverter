@@ -15,6 +15,7 @@
 #include "unsuck/TaskPool.hpp"
 #include "Vector3.h"
 #include "ConcurrentWriter.h"
+#include "RuntimeConfig.h"
 
 #include "json/json.hpp"
 #include "laszip/laszip_api.h"
@@ -39,12 +40,7 @@ namespace fs = std::filesystem;
 
 namespace chunker_countsort_laszip
 {
-
-	auto numChunkerThreads = getCpuData().numProcessors;
-	auto numFlushThreads = getCpuData().numProcessors;
-
-	int64_t maxPointsPerChunk = defaultMaxPointsPerChunk;
-	int gridSize = 128;
+	int gridSize = RuntimeConfig::GridSize;
 	mutex mtx_attributes;
 
 	struct Point
@@ -283,7 +279,7 @@ namespace chunker_countsort_laszip
 			// cout << ("end: " + formatNumber(dbgCurr)) << endl;
 		};
 
-		TaskPool<Task> pool(numChunkerThreads, processor);
+		TaskPool<Task> pool(RuntimeConfig::MaxThreadCount, processor);
 
 		auto tStartTaskAssembly = now();
 
@@ -310,9 +306,8 @@ namespace chunker_countsort_laszip
 			int64_t numPoints = std::max(uint64_t(header->number_of_point_records), header->extended_number_of_point_records);
 
 			int64_t pointsLeft = numPoints;
-			int64_t batchSize = defaultBatchSize;
+			int64_t batchSize = RuntimeConfig::MaxBatchSize;
 			int64_t numRead = 0;
-
 			while (pointsLeft > 0)
 			{
 
@@ -728,7 +723,7 @@ namespace chunker_countsort_laszip
 		state.bytesProcessed = 0;
 		state.duration = 0;
 
-		writer = new ConcurrentWriter(numFlushThreads, state);
+		writer = new ConcurrentWriter(RuntimeConfig::MaxThreadCount, state);
 
 		printElapsedTime("distributePoints0", tStart);
 
@@ -1004,7 +999,7 @@ namespace chunker_countsort_laszip
 			}
 		};
 
-		TaskPool<Task> pool(numChunkerThreads, processor);
+		TaskPool<Task> pool(RuntimeConfig::MaxThreadCount, processor);
 
 		for (auto source : sources)
 		{
@@ -1023,7 +1018,7 @@ namespace chunker_countsort_laszip
 
 			int64_t numPoints = std::max(uint64_t(header->number_of_point_records), header->extended_number_of_point_records);
 			int64_t pointsLeft = numPoints;
-			int64_t maxBatchSize = 1'000'000;
+			int64_t maxBatchSize = RuntimeConfig::MaxBatchSize;
 			int64_t numRead = 0;
 
 			vector<Source> tmpSources = {source};
@@ -1231,7 +1226,7 @@ namespace chunker_countsort_laszip
 							max = std::max(max, value);
 						}
 
-						if (unmergeable || sum > maxPointsPerChunk)
+						if (unmergeable || sum > RuntimeConfig::MaxPointsPerChunk)
 						{
 
 							// finished chunks
@@ -1300,23 +1295,6 @@ namespace chunker_countsort_laszip
 	{
 
 		auto tStart = now();
-
-		int64_t tmp = state.pointsTotal / 20;
-		maxPointsPerChunk = std::min(tmp, int64_t(10'000'000));
-		// cout << "maxPointsPerChunk: " << maxPointsPerChunk << endl;
-
-		if (state.pointsTotal < 100'000'000)
-		{
-			gridSize = 128;
-		}
-		else if (state.pointsTotal < 500'000'000)
-		{
-			gridSize = 256;
-		}
-		else
-		{
-			gridSize = 512;
-		}
 
 		state.currentPass = 1;
 

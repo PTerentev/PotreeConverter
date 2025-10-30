@@ -13,12 +13,14 @@
 #include "PotreeConverter.h"
 #include "logger.h"
 #include "Monitor.h"
+#include "RuntimeConfig.h"
 
 #include "arguments/Arguments.hpp"
 
 using namespace std;
 
-Options parseArguments(int argc, char** argv) {
+Options parseArguments(int argc, char **argv)
+{
 	Arguments args(argc, argv);
 
 	args.addArgument("source,i,", "Input file(s)");
@@ -34,25 +36,35 @@ Options parseArguments(int argc, char** argv) {
 	args.addArgument("projection", "Add the projection of the pointcloud to the metadata");
 	args.addArgument("generate-page,p", "Generate a ready to use web page with the given name");
 	args.addArgument("title", "Page title used when generating a web page");
+	args.addArgument("thread-count", "Override worker thread count");
+	args.addArgument("batch-size", "Override point batch size");
+	args.addArgument("points-size", "Override maximum points per chunk");
+	args.addArgument("grid-size", "Override maximum grid size");
 
-	if (args.has("help")) {
+	if (args.has("help"))
+	{
 		cout << "PotreeConverter <source> -o <outdir>" << endl;
-		cout << endl << args.usage() << endl;
+		cout << endl
+			 << args.usage() << endl;
 		exit(0);
 	}
 
-	if (!args.has("source")) {
+	if (!args.has("source"))
+	{
 		cout << "PotreeConverter <source> -o <outdir>" << endl;
-		cout << endl << "For a list of options, use --help or -h" << endl;
+		cout << endl
+			 << "For a list of options, use --help or -h" << endl;
 
 		exit(1);
 	}
 
 	vector<string> source = args.get("source").as<vector<string>>();
 
-	if (source.size() == 0) {
+	if (source.size() == 0)
+	{
 		cout << "PotreeConverter <source> -o <outdir>" << endl;
-		cout << endl << "For a list of options, use --help or -h" << endl;
+		cout << endl
+			 << "For a list of options, use --help or -h" << endl;
 
 		exit(1);
 	}
@@ -62,22 +74,26 @@ Options parseArguments(int argc, char** argv) {
 	string chunkMethod = args.get("chunkMethod").as<string>("LASZIP");
 
 	string outdir = "";
-	if (args.has("outdir")) {
+	if (args.has("outdir"))
+	{
 		outdir = args.get("outdir").as<string>();
-	} else {
+	}
+	else
+	{
 
 		string sourcepath = source[0];
 		fs::path path(sourcepath);
 
-		//cout << fs::canonical(source[0]) << endl;
-		//exit(123);
+		// cout << fs::canonical(source[0]) << endl;
+		// exit(123);
 
-		if (!fs::exists(path)) {
+		if (!fs::exists(path))
+		{
 
 			logger::ERROR("file does not exist: " + source[0]);
 
 			exit(123);
-		} 
+		}
 
 		path = fs::canonical(path);
 
@@ -85,10 +101,12 @@ Options parseArguments(int argc, char** argv) {
 		outdir = sourcepath + "/../" + suggestedBaseName;
 
 		int i = 1;
-		while(fs::exists(outdir)) {
+		while (fs::exists(outdir))
+		{
 			outdir = sourcepath + "/../" + suggestedBaseName + "_" + std::to_string(i);
 
-			if (i > 100) {
+			if (i > 100)
+			{
 
 				logger::ERROR("unsuccessfully tried to find empty output directory. stopped at 100 iterations: " + outdir);
 
@@ -97,18 +115,18 @@ Options parseArguments(int argc, char** argv) {
 
 			i++;
 		}
-
 	}
 
 	outdir = fs::weakly_canonical(fs::path(outdir)).string();
 
-	//vector<string> flags = args.get("flags").as<vector<string>>();
+	// vector<string> flags = args.get("flags").as<vector<string>>();
 
 	vector<string> attributes = args.get("attributes").as<vector<string>>();
 
 	bool generatePage = args.has("generate-page");
 	string pageName = "";
-	if (generatePage) {
+	if (generatePage)
+	{
 		pageName = args.get("generate-page").as<string>();
 	}
 	string pageTitle = args.get("title").as<string>();
@@ -124,7 +142,7 @@ Options parseArguments(int argc, char** argv) {
 	options.method = method;
 	options.encoding = encoding;
 	options.chunkMethod = chunkMethod;
-	//options.flags = flags;
+	// options.flags = flags;
 	options.attributes = attributes;
 	options.generatePage = generatePage;
 	options.pageName = pageName;
@@ -135,40 +153,55 @@ Options parseArguments(int argc, char** argv) {
 	options.noChunking = noChunking;
 	options.noIndexing = noIndexing;
 
-	//cout << "flags: ";
-	//for (string flag : options.flags) {
+	options.threadCount = args.get("thread-count").as<int>(0);
+	options.batchSize = static_cast<int64_t>(args.get("batch-size").as<int>(0));
+	options.pointsPerChunk = static_cast<int64_t>(args.get("points-size").as<int>(0));
+	options.gridSize = args.get("grid-size").as<int>(0);
+
+	// cout << "flags: ";
+	// for (string flag : options.flags) {
 	//	cout << flag << ", ";
-	//}
-	//cout << endl;
+	// }
+	// cout << endl;
 
 	return options;
 }
 
-struct Curated{
+struct Curated
+{
 	string name;
 	vector<Source> files;
 };
-Curated curateSources(vector<string> paths) {
+Curated curateSources(vector<string> paths)
+{
 
 	string name = "";
 
 	vector<string> expanded;
-	for (auto path : paths) {
-		if (fs::is_directory(path)) {
-			for (auto& entry : fs::directory_iterator(path)) {
+	for (auto path : paths)
+	{
+		if (fs::is_directory(path))
+		{
+			for (auto &entry : fs::directory_iterator(path))
+			{
 				string str = entry.path().string();
 
-				if (iEndsWith(str, "las") || iEndsWith(str, "laz")) {
+				if (iEndsWith(str, "las") || iEndsWith(str, "laz"))
+				{
 					expanded.push_back(str);
 				}
 			}
-		} else if (fs::is_regular_file(path)) {
-			if (iEndsWith(path, "las") || iEndsWith(path, "laz")) {
+		}
+		else if (fs::is_regular_file(path))
+		{
+			if (iEndsWith(path, "las") || iEndsWith(path, "laz"))
+			{
 				expanded.push_back(path);
 			}
 		}
 
-		if (name.size() == 0) {
+		if (name.size() == 0)
+		{
 			name = fs::path(path).stem().string();
 		}
 	}
@@ -181,7 +214,8 @@ Curated curateSources(vector<string> paths) {
 
 	mutex mtx;
 	auto parallel = std::execution::par;
-	for_each(parallel, paths.begin(), paths.end(), [&mtx, &sources](string path) {
+	for_each(parallel, paths.begin(), paths.end(), [&mtx, &sources](string path)
+			 {
 
 		auto header = loadLasHeader(path);
 		auto filesize = fs::file_size(path);
@@ -197,34 +231,34 @@ Curated curateSources(vector<string> paths) {
 		source.filesize = filesize;
 
 		lock_guard<mutex> lock(mtx);
-		sources.push_back(source);
-	});
+		sources.push_back(source); });
 
 	return {name, sources};
 }
 
-
-
-struct Stats {
-	Vector3 min = { Infinity , Infinity , Infinity };
-	Vector3 max = { -Infinity , -Infinity , -Infinity };
+struct Stats
+{
+	Vector3 min = {Infinity, Infinity, Infinity};
+	Vector3 max = {-Infinity, -Infinity, -Infinity};
 	int64_t totalBytes = 0;
 	int64_t totalPoints = 0;
 };
 
-Stats computeStats(vector<Source> sources){
+Stats computeStats(vector<Source> sources)
+{
 
-	Vector3 min = { Infinity , Infinity , Infinity };
-	Vector3 max = { -Infinity , -Infinity , -Infinity };
+	Vector3 min = {Infinity, Infinity, Infinity};
+	Vector3 max = {-Infinity, -Infinity, -Infinity};
 
 	int64_t totalBytes = 0;
 	int64_t totalPoints = 0;
 
-	for(auto source : sources){
+	for (auto source : sources)
+	{
 		min.x = std::min(min.x, source.min.x);
 		min.y = std::min(min.y, source.min.y);
 		min.z = std::min(min.z, source.min.z);
-								
+
 		max.x = std::max(max.x, source.max.x);
 		max.y = std::max(max.y, source.max.y);
 		max.z = std::max(max.z, source.max.z);
@@ -233,9 +267,8 @@ Stats computeStats(vector<Source> sources){
 		totalBytes += source.filesize;
 	}
 
-
 	double cubeSize = (max - min).max();
-	Vector3 size = { cubeSize, cubeSize, cubeSize };
+	Vector3 size = {cubeSize, cubeSize, cubeSize};
 	max = min + cubeSize;
 
 	string strMin = "[" + to_string(min.x) + ", " + to_string(min.y) + ", " + to_string(min.z) + "]";
@@ -249,17 +282,23 @@ Stats computeStats(vector<Source> sources){
 		int64_t GB = 1024 * MB;
 		int64_t TB = 1024 * GB;
 
-		if (totalBytes >= TB) {
+		if (totalBytes >= TB)
+		{
 			strTotalFileSize = formatNumber(double(totalBytes) / double(TB), 1) + " TB";
-		} else if (totalBytes >= GB) {
+		}
+		else if (totalBytes >= GB)
+		{
 			strTotalFileSize = formatNumber(double(totalBytes) / double(GB), 1) + " GB";
-		} else if (totalBytes >= MB) {
+		}
+		else if (totalBytes >= MB)
+		{
 			strTotalFileSize = formatNumber(double(totalBytes) / double(MB), 1) + " MB";
-		} else {
+		}
+		else
+		{
 			strTotalFileSize = formatNumber(double(totalBytes), 1) + " bytes";
 		}
 	}
-	
 
 	cout << "cubicAABB: {\n";
 	cout << "	\"min\": " << strMin << ",\n";
@@ -272,15 +311,15 @@ Stats computeStats(vector<Source> sources){
 
 	{ // sanity check
 		bool sizeError = (size.x == 0.0) || (size.y == 0.0) || (size.z == 0);
-		if (sizeError) {
+		if (sizeError)
+		{
 			logger::ERROR("invalid bounding box. at least one axis has a size of zero.");
 
 			exit(123);
 		}
-		
 	}
 
-	return { min, max, totalBytes, totalPoints };
+	return {min, max, totalBytes, totalPoints};
 }
 
 // struct Monitor {
@@ -341,58 +380,67 @@ Stats computeStats(vector<Source> sources){
 // 	return monitor;
 // }
 
+void chunking(Options &options, vector<Source> &sources, string targetDir, Stats &stats, State &state, Attributes outputAttributes, Monitor *monitor)
+{
 
-void chunking(Options& options, vector<Source>& sources, string targetDir, Stats& stats, State& state, Attributes outputAttributes, Monitor* monitor) {
-
-	if (options.noChunking) {
+	if (options.noChunking)
+	{
 		return;
 	}
 
-	if (options.chunkMethod == "LASZIP") {
+	if (options.chunkMethod == "LASZIP")
+	{
 
 		chunker_countsort_laszip::doChunking(sources, targetDir, stats.min, stats.max, state, outputAttributes, monitor);
+	}
+	else if (options.chunkMethod == "LAS_CUSTOM")
+	{
 
-	} else if (options.chunkMethod == "LAS_CUSTOM") {
-
-		//chunker_countsort::doChunking(sources[0].path, targetDir, state);
-
-	} else if (options.chunkMethod == "SKIP") {
+		// chunker_countsort::doChunking(sources[0].path, targetDir, state);
+	}
+	else if (options.chunkMethod == "SKIP")
+	{
 
 		// skip chunking
-
-	} else {
+	}
+	else
+	{
 
 		cout << "ERROR: unkown chunk method: " << options.chunkMethod << endl;
 		exit(123);
-
 	}
 }
 
-void indexing(Options& options, string targetDir, State& state) {
+void indexing(Options &options, string targetDir, State &state)
+{
 
-	if (options.noIndexing) {
+	if (options.noIndexing)
+	{
 		return;
 	}
 
-	if (options.method == "random") {
+	if (options.method == "random")
+	{
 
 		SamplerRandom sampler;
 		indexer::doIndexing(targetDir, state, options, sampler);
-
-	} else if (options.method == "poisson") {
+	}
+	else if (options.method == "poisson")
+	{
 
 		SamplerPoisson sampler;
 		indexer::doIndexing(targetDir, state, options, sampler);
-
-	} else if (options.method == "poisson_average") {
+	}
+	else if (options.method == "poisson_average")
+	{
 
 		SamplerPoissonAverage sampler;
 		indexer::doIndexing(targetDir, state, options, sampler);
-
 	}
 }
 
-void createReport(Options& options, vector<Source> sources, string targetDir, Stats& stats, State& state, double tStart) {
+void createReport(Options &options, vector<Source> sources, string targetDir, Stats &stats, State &state, double tStart)
+{
 	double duration = now() - tStart;
 	double throughputMB = (stats.totalBytes / duration) / (1024 * 1024);
 	double throughputP = (double(stats.totalPoints) / double(duration)) / 1'000'000.0;
@@ -402,16 +450,23 @@ void createReport(Options& options, vector<Source> sources, string targetDir, St
 	double gb = 1024.0 * 1024.0 * 1024.0;
 	double inputSize = 0;
 	string inputSizeUnit = "";
-	if (stats.totalBytes <= 10.0 * kb) {
+	if (stats.totalBytes <= 10.0 * kb)
+	{
 		inputSize = stats.totalBytes / kb;
 		inputSizeUnit = "KB";
-	} else if (stats.totalBytes <= 10.0 * mb) {
+	}
+	else if (stats.totalBytes <= 10.0 * mb)
+	{
 		inputSize = stats.totalBytes / mb;
 		inputSizeUnit = "MB";
-	} else if (stats.totalBytes <= 10.0 * gb) {
+	}
+	else if (stats.totalBytes <= 10.0 * gb)
+	{
 		inputSize = stats.totalBytes / gb;
 		inputSizeUnit = "GB";
-	} else {
+	}
+	else
+	{
 		inputSize = stats.totalBytes / gb;
 		inputSizeUnit = "GB";
 	}
@@ -431,24 +486,25 @@ void createReport(Options& options, vector<Source> sources, string targetDir, St
 	cout << "throughput (points/s)  " << formatNumber(throughputP, 1) << "M" << endl;
 	cout << "output location:       " << targetDir << endl;
 
-	
-
-	for (auto [key, value] : state.values) {
+	for (auto [key, value] : state.values)
+	{
 		cout << key << ": \t" << value << endl;
 	}
-
-
 }
 
-void generatePage(string exePath, string pagedir, string pagename) {
+void generatePage(string exePath, string pagedir, string pagename)
+{
 	string templateDir = exePath + "/resources/page_template";
 	string templateSourcePath = templateDir + "/viewer_template.html";
 
 	string pageTargetPath = pagedir + "/" + pagename + ".html";
 
-	try{
+	try
+	{
 		fs::copy(templateDir, pagedir, fs::copy_options::overwrite_existing | fs::copy_options::recursive);
-	} catch (std::exception & e) {
+	}
+	catch (std::exception &e)
+	{
 		string msg = e.what();
 		logger::ERROR(msg);
 	}
@@ -458,8 +514,8 @@ void generatePage(string exePath, string pagedir, string pagename) {
 	{ // configure page template
 		string strTemplate = readFile(templateSourcePath);
 
-		string strPointcloudTemplate = 
-		R"V0G0N(
+		string strPointcloudTemplate =
+			R"V0G0N(
 
 		Potree.loadPointCloud("<!-- URL -->", "<!-- NAME -->", e => {
 			let scene = viewer.scene;
@@ -485,18 +541,15 @@ void generatePage(string exePath, string pagedir, string pagename) {
 
 		string strPage = stringReplace(strTemplate, "<!-- INCLUDE POINTCLOUD -->", strPointcloud);
 
-
 		writeFile(pageTargetPath, strPage);
-
 	}
-
 }
 
 #include "HierarchyBuilder.h"
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv)
+{
 
-	
 	// { // DEBUG STUFF
 
 	// 	string hierarchyDir = "D:/dev/pointclouds/Riegl/retz_converted/.hierarchyChunks";
@@ -508,21 +561,24 @@ int main(int argc, char** argv) {
 	// 	return 0;
 	// }
 
-
-
-	double tStart = now(); 
+	double tStart = now();
 
 	auto exePath = fs::canonical(fs::absolute(argv[0])).parent_path().string();
 
 	launchMemoryChecker(2 * 1024, 0.1);
-	auto cpuData = getCpuData();
-
-	cout << "#threads: " << cpuData.numProcessors << endl;
 
 	auto options = parseArguments(argc, argv);
 
+	RuntimeConfig::MaxThreadCount = options.threadCount > 0 ? options.threadCount : RuntimeConfig::MaxThreadCount;
+	RuntimeConfig::MaxBatchSize = options.batchSize > 0 ? options.batchSize : RuntimeConfig::MaxBatchSize;
+	RuntimeConfig::MaxPointsPerChunk = options.pointsPerChunk > 0 ? options.pointsPerChunk : RuntimeConfig::MaxPointsPerChunk;
+	RuntimeConfig::GridSize = options.gridSize > 0 ? options.gridSize : RuntimeConfig::GridSize;
+
+	cout << "#threads: " << RuntimeConfig::MaxThreadCount << endl;
+
 	auto [name, sources] = curateSources(options.source);
-	if (options.name.size() == 0) {
+	if (options.name.size() == 0)
+	{
 		options.name = name;
 	}
 
@@ -530,9 +586,10 @@ int main(int argc, char** argv) {
 	cout << toString(outputAttributes);
 
 	auto stats = computeStats(sources);
-	
+
 	string targetDir = options.outdir;
-	if (options.generatePage) {
+	if (options.generatePage)
+	{
 
 		string pagedir = targetDir;
 		generatePage(exePath, pagedir, options.pageName);
@@ -551,19 +608,16 @@ int main(int argc, char** argv) {
 	auto monitor = make_shared<Monitor>(&state);
 	monitor->start();
 
-
 	{ // this is the real important stuff
 
 		chunking(options, sources, targetDir, stats, state, outputAttributes, monitor.get());
 
 		indexing(options, targetDir, state);
-
 	}
 
 	monitor->stop();
 
 	createReport(options, sources, targetDir, stats, state, tStart);
-
 
 	return 0;
 }

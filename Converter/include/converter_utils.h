@@ -24,9 +24,6 @@ using std::thread;
 
 namespace fs = std::filesystem;
 
-inline constexpr int64_t defaultBatchSize = 100'000;
-inline constexpr int64_t defaultMaxPointsPerChunk = 1'000'000;
-
 struct LASPointF2
 {
 	int32_t x;
@@ -194,4 +191,9 @@ struct Options
 	bool keepChunks = false;
 	bool noChunking = false;
 	bool noIndexing = false;
+
+	int threadCount = 0;
+	int64_t batchSize = 0;
+	int64_t pointsPerChunk = 0;
+	int64_t gridSize = 0;
 };
