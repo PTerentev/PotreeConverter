@@ -908,7 +908,7 @@ namespace indexer
 	void buildHierarchy(Indexer *indexer, Node *node, shared_ptr<Buffer> points, int64_t numPoints, int64_t depth = 0)
 	{
 
-		if (numPoints < RuntimeConfig::MaxPointsPerChunk)
+		if (numPoints <= RuntimeConfig::MaxPointsPerChunk)
 		{
 			Node *realization = node;
 			realization->indexStart = 0;

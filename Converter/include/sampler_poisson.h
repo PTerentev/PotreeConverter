@@ -7,16 +7,17 @@
 #include "Attributes.h"
 #include "PotreeConverter.h"
 
-
-struct SamplerPoisson : public Sampler {
+struct SamplerPoisson : public Sampler
+{
 
 	// subsample a local octree from bottom up
-	void sample(Node* node, Attributes attributes, double baseSpacing, 
-		function<void(Node*)> onNodeCompleted, 
-		function<void(Node*)> onNodeDiscarded
-	) {
+	void sample(Node *node, Attributes attributes, double baseSpacing,
+				function<void(Node *)> onNodeCompleted,
+				function<void(Node *)> onNodeDiscarded)
+	{
 
-		struct Point {
+		struct Point
+		{
 			double x;
 			double y;
 			double z;
@@ -24,10 +25,13 @@ struct SamplerPoisson : public Sampler {
 			int32_t childIndex;
 		};
 
-		function<void(Node*, function<void(Node*)>)> traversePost = [&traversePost](Node* node, function<void(Node*)> callback) {
-			for (auto child : node->children) {
+		function<void(Node *, function<void(Node *)>)> traversePost = [&traversePost](Node *node, function<void(Node *)> callback)
+		{
+			for (auto child : node->children)
+			{
 
-				if (child != nullptr && !child->sampled) {
+				if (child != nullptr && !child->sampled)
+				{
 					traversePost(child.get(), callback);
 				}
 			}
@@ -39,7 +43,8 @@ struct SamplerPoisson : public Sampler {
 		Vector3 scale = attributes.posScale;
 		Vector3 offset = attributes.posOffset;
 
-		traversePost(node, [bytesPerPoint, baseSpacing, scale, offset, &onNodeCompleted, &onNodeDiscarded, attributes](Node* node) {
+		traversePost(node, [bytesPerPoint, baseSpacing, scale, offset, &onNodeCompleted, &onNodeDiscarded, attributes](Node *node)
+					 {
 			node->sampled = true;
 
 			int64_t numPoints = node->numPoints;
@@ -77,7 +82,6 @@ struct SamplerPoisson : public Sampler {
 
 			vector<vector<int8_t>> acceptedChildPointFlags;
 			vector<int64_t> numRejectedPerChild(8, 0);
-			int64_t numAccepted = 0;
 
 			for (int64_t childIndex = 0; childIndex < 8; childIndex++) {
 				auto child = node->children[childIndex];
@@ -109,8 +113,14 @@ struct SamplerPoisson : public Sampler {
 
 			unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
 
-			thread_local vector<Point> dbgAccepted(1'000'000);
-			int64_t dbgNumAccepted = 0;
+			// `thread_local` saves repeated allocations and frees.
+			// It runs (the constructor) only once per thread
+			// (making the vector outlive lexical scope),
+			// so we need to `clear()` to actually get an empty one.
+			thread_local vector<Point> dbgAccepted;
+			dbgAccepted.clear();
+			dbgAccepted.reserve(1'000'000);
+
 			double spacing = baseSpacing / pow(2.0, node->level());
 			double squaredSpacing = spacing * spacing;
 
@@ -130,7 +140,7 @@ struct SamplerPoisson : public Sampler {
 			//int dbgSumChecks = 0;
 			//int dbgMaxChecks = 0;
 
-			auto checkAccept = [/*&dbgChecks, &dbgSumChecks,*/ &dbgNumAccepted, spacing, squaredSpacing, &squaredDistance, center /*, &numDistanceChecks*/](Point candidate) {
+			auto checkAccept = [/*&dbgChecks, &dbgSumChecks,*/ spacing, squaredSpacing, &squaredDistance, center /*, &numDistanceChecks*/](Point candidate) {
 
 				auto cx = candidate.x - center.x;
 				auto cy = candidate.y - center.y;
@@ -141,7 +151,7 @@ struct SamplerPoisson : public Sampler {
 				auto limitSquared = limit * limit;
 
 				int64_t j = 0;
-				for (int64_t i = dbgNumAccepted - 1; i >= 0; i--) {
+				for (int64_t i = dbgAccepted.size() - 1; i >= 0; i--) {
 
 					auto& point = dbgAccepted[i];
 
@@ -179,8 +189,7 @@ struct SamplerPoisson : public Sampler {
 
 			};
 
-			auto parallel = std::execution::par_unseq;
-			std::sort(parallel, points.begin(), points.end(), [center](Point a, Point b) -> bool {
+			std::sort(points.begin(), points.end(), [center](Point a, Point b) -> bool {
 
 				auto ax = a.x - center.x;
 				auto ay = a.y - center.y;
@@ -211,9 +220,7 @@ struct SamplerPoisson : public Sampler {
 				//dbgMaxChecks = std::max(dbgChecks, dbgMaxChecks);
 
 				if (isAccepted) {
-					dbgAccepted[dbgNumAccepted] = point;
-					dbgNumAccepted++;
-					numAccepted++;
+					dbgAccepted.push_back(point);
 				} else {
 					numRejectedPerChild[point.childIndex]++;
 				}
@@ -244,7 +251,7 @@ struct SamplerPoisson : public Sampler {
 
 			}
 
-			auto accepted = make_shared<Buffer>(numAccepted * attributes.bytes);
+			auto accepted = make_shared<Buffer>(dbgAccepted.size() * attributes.bytes);
 			for (int64_t childIndex = 0; childIndex < 8; childIndex++) {
 				auto child = node->children[childIndex];
 
@@ -291,7 +298,7 @@ struct SamplerPoisson : public Sampler {
 			}
 
 			node->points = accepted;
-			node->numPoints = numAccepted;
+			node->numPoints = dbgAccepted.size();
 
 			//{ // debug
 			//	auto avgChecks = dbgSumChecks / points.size();
@@ -299,9 +306,6 @@ struct SamplerPoisson : public Sampler {
 			//	cout << msg;
 			//}
 
-			return true;
-		});
+			return true; });
 	}
-
 };
-
