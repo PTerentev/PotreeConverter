@@ -1776,7 +1776,7 @@ namespace indexer
 		auto attributes = chunks->attributes;
 		int64_t bpp = attributes.bytes;
 
-		indexer.waitUntilWriterBacklogBelow(1'000);
+		indexer.waitUntilWriterBacklogBelow(500 + RuntimeConfig::MaxBatchSize / (1024 * 1024));
 		activeThreads++;
 
 		auto filesize = fs::file_size(chunk->file);

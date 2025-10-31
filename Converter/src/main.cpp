@@ -575,6 +575,9 @@ int main(int argc, char **argv)
 	RuntimeConfig::GridSize = options.gridSize > 0 ? options.gridSize : RuntimeConfig::GridSize;
 
 	cout << "#threads: " << RuntimeConfig::MaxThreadCount << endl;
+	cout << "#batch size: " << RuntimeConfig::MaxBatchSize << endl;
+	cout << "#points per chunk: " << RuntimeConfig::MaxPointsPerChunk << endl;
+	cout << "#grid size: " << RuntimeConfig::GridSize << endl;
 
 	auto [name, sources] = curateSources(options.source);
 	if (options.name.size() == 0)
