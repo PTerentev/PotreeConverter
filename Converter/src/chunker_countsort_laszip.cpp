@@ -785,7 +785,7 @@ namespace chunker_countsort_laszip
 			// may have set the values before.
 			memset(data, 0, bufferSize);
 
-			writer->waitUntilMemoryBelow(500 + RuntimeConfig::MaxBatchSize / (1024 * 1024));
+			writer->waitUntilMemoryBelow(500);
 
 			int pointFormat = -1;
 			// per-thread copy of outputAttributes to compute min/max in a thread-safe way

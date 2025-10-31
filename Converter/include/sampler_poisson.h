@@ -82,6 +82,7 @@ struct SamplerPoisson : public Sampler
 
 			vector<vector<int8_t>> acceptedChildPointFlags;
 			vector<int64_t> numRejectedPerChild(8, 0);
+			int64_t numAccepted = 0;
 
 			for (int64_t childIndex = 0; childIndex < 8; childIndex++) {
 				auto child = node->children[childIndex];
@@ -113,14 +114,8 @@ struct SamplerPoisson : public Sampler
 
 			unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
 
-			// `thread_local` saves repeated allocations and frees.
-			// It runs (the constructor) only once per thread
-			// (making the vector outlive lexical scope),
-			// so we need to `clear()` to actually get an empty one.
-			thread_local vector<Point> dbgAccepted;
-			dbgAccepted.clear();
-			dbgAccepted.reserve(1'000'000);
-
+			vector<Point> acceptedPoints;
+			acceptedPoints.reserve(points.size());
 			double spacing = baseSpacing / pow(2.0, node->level());
 			double squaredSpacing = spacing * spacing;
 
@@ -140,7 +135,7 @@ struct SamplerPoisson : public Sampler
 			//int dbgSumChecks = 0;
 			//int dbgMaxChecks = 0;
 
-			auto checkAccept = [/*&dbgChecks, &dbgSumChecks,*/ spacing, squaredSpacing, &squaredDistance, center /*, &numDistanceChecks*/](Point candidate) {
+			auto checkAccept = [/*&dbgChecks, &dbgSumChecks,*/ spacing, squaredSpacing, &squaredDistance, center /*, &numDistanceChecks*/, &acceptedPoints](Point candidate) {
 
 				auto cx = candidate.x - center.x;
 				auto cy = candidate.y - center.y;
@@ -151,9 +146,9 @@ struct SamplerPoisson : public Sampler
 				auto limitSquared = limit * limit;
 
 				int64_t j = 0;
-				for (int64_t i = dbgAccepted.size() - 1; i >= 0; i--) {
+				for (int64_t i = acceptedPoints.size() - 1; i >= 0; i--) {
 
-					auto& point = dbgAccepted[i];
+					auto& point = acceptedPoints[i];
 
 					//dbgChecks++;
 					//dbgSumChecks++;
@@ -189,7 +184,8 @@ struct SamplerPoisson : public Sampler
 
 			};
 
-			std::sort(points.begin(), points.end(), [center](Point a, Point b) -> bool {
+			auto parallel = std::execution::par_unseq;
+			std::sort(parallel, points.begin(), points.end(), [center](Point a, Point b) -> bool {
 
 				auto ax = a.x - center.x;
 				auto ay = a.y - center.y;
@@ -220,7 +216,8 @@ struct SamplerPoisson : public Sampler
 				//dbgMaxChecks = std::max(dbgChecks, dbgMaxChecks);
 
 				if (isAccepted) {
-					dbgAccepted.push_back(point);
+					acceptedPoints.push_back(point);
+					numAccepted++;
 				} else {
 					numRejectedPerChild[point.childIndex]++;
 				}
@@ -251,7 +248,9 @@ struct SamplerPoisson : public Sampler
 
 			}
 
-			auto accepted = make_shared<Buffer>(dbgAccepted.size() * attributes.bytes);
+		vector<Point>().swap(points);
+
+			auto accepted = make_shared<Buffer>(numAccepted * attributes.bytes);
 			for (int64_t childIndex = 0; childIndex < 8; childIndex++) {
 				auto child = node->children[childIndex];
 
@@ -298,7 +297,9 @@ struct SamplerPoisson : public Sampler
 			}
 
 			node->points = accepted;
-			node->numPoints = dbgAccepted.size();
+			node->numPoints = numAccepted;
+
+		vector<Point>().swap(acceptedPoints);
 
 			//{ // debug
 			//	auto avgChecks = dbgSumChecks / points.size();

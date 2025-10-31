@@ -322,7 +322,7 @@ namespace indexer
 		};
 
 		string targetDir = this->targetDir;
-		TaskPool<LoadTask> pool(16, [targetDir](shared_ptr<LoadTask> task)
+		TaskPool<LoadTask> pool(RuntimeConfig::MaxThreadCount, [targetDir](shared_ptr<LoadTask> task)
 								{
 			string octreePath = targetDir + "/tmpChunkRoots.bin";
 
@@ -1776,7 +1776,7 @@ namespace indexer
 		auto attributes = chunks->attributes;
 		int64_t bpp = attributes.bytes;
 
-		indexer.waitUntilWriterBacklogBelow(500 + RuntimeConfig::MaxBatchSize / (1024 * 1024));
+		indexer.waitUntilWriterBacklogBelow(1000);
 		activeThreads++;
 
 		auto filesize = fs::file_size(chunk->file);
