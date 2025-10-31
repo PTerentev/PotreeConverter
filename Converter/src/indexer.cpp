@@ -866,7 +866,7 @@ namespace indexer
 					nodes.push_back(candidate);
 				}
 			}
-			else if (numPoints > RuntimeConfig::MaxPointsPerChunk)
+			else if (numPoints > RuntimeConfig::IndexSize)
 			{
 				// split (too many points in node)
 
@@ -908,7 +908,7 @@ namespace indexer
 	void buildHierarchy(Indexer *indexer, Node *node, shared_ptr<Buffer> points, int64_t numPoints, int64_t depth = 0)
 	{
 
-		if (numPoints <= RuntimeConfig::MaxPointsPerChunk)
+		if (numPoints < RuntimeConfig::IndexSize)
 		{
 			Node *realization = node;
 			realization->indexStart = 0;
@@ -1070,7 +1070,7 @@ namespace indexer
 
 			realization->points = buffer;
 
-			if (realization->numPoints > RuntimeConfig::MaxPointsPerChunk)
+			if (realization->numPoints > RuntimeConfig::IndexSize)
 			{
 				needRefinement.push_back(realization);
 			}
@@ -1124,7 +1124,7 @@ namespace indexer
 				int64_t numUniquePoints = counters.size();
 				int64_t numDuplicates = numPointsInBox - numUniquePoints;
 
-				if (numDuplicates < RuntimeConfig::MaxPointsPerChunk / 2)
+				if (numDuplicates < RuntimeConfig::IndexSize / 2)
 				{
 					// few uniques, just unfavouribly distributed points
 					// print warning but continue
@@ -1776,7 +1776,7 @@ namespace indexer
 		auto attributes = chunks->attributes;
 		int64_t bpp = attributes.bytes;
 
-		indexer.waitUntilWriterBacklogBelow(1000);
+		indexer.waitUntilWriterBacklogBelow(500);
 		activeThreads++;
 
 		auto filesize = fs::file_size(chunk->file);
@@ -1928,4 +1928,5 @@ namespace indexer
 		double duration = now() - tStart;
 		state.values["duration(indexing)"] = formatNumber(duration, 3);
 	}
+
 }

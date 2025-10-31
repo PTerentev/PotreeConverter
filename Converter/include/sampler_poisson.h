@@ -248,8 +248,6 @@ struct SamplerPoisson : public Sampler
 
 			}
 
-		vector<Point>().swap(points);
-
 			auto accepted = make_shared<Buffer>(numAccepted * attributes.bytes);
 			for (int64_t childIndex = 0; childIndex < 8; childIndex++) {
 				auto child = node->children[childIndex];
@@ -298,8 +296,6 @@ struct SamplerPoisson : public Sampler
 
 			node->points = accepted;
 			node->numPoints = numAccepted;
-
-		vector<Point>().swap(acceptedPoints);
 
 			//{ // debug
 			//	auto avgChecks = dbgSumChecks / points.size();

@@ -196,4 +196,5 @@ struct Options
 	int64_t batchSize = 0;
 	int64_t pointsPerChunk = 0;
 	int64_t gridSize = 0;
+	int64_t indexSize = 0;
 };

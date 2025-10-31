@@ -10,4 +10,5 @@ namespace RuntimeConfig
 	extern int64_t MaxBatchSize;
 	extern int64_t MaxPointsPerChunk;
 	extern int GridSize;
+	extern int IndexSize;
 }

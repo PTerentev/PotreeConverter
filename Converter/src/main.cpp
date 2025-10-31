@@ -40,6 +40,7 @@ Options parseArguments(int argc, char **argv)
 	args.addArgument("batch-size", "Override point batch size");
 	args.addArgument("points-size", "Override maximum points per chunk");
 	args.addArgument("grid-size", "Override maximum grid size");
+	args.addArgument("index-size", "Override maximum points per chunk when indexing");
 
 	if (args.has("help"))
 	{
@@ -157,6 +158,7 @@ Options parseArguments(int argc, char **argv)
 	options.batchSize = static_cast<int64_t>(args.get("batch-size").as<int>(0));
 	options.pointsPerChunk = static_cast<int64_t>(args.get("points-size").as<int>(0));
 	options.gridSize = args.get("grid-size").as<int>(0);
+	options.indexSize = args.get("index-size").as<int>(0);
 
 	// cout << "flags: ";
 	// for (string flag : options.flags) {
@@ -573,11 +575,13 @@ int main(int argc, char **argv)
 	RuntimeConfig::MaxBatchSize = options.batchSize > 0 ? options.batchSize : RuntimeConfig::MaxBatchSize;
 	RuntimeConfig::MaxPointsPerChunk = options.pointsPerChunk > 0 ? options.pointsPerChunk : RuntimeConfig::MaxPointsPerChunk;
 	RuntimeConfig::GridSize = options.gridSize > 0 ? options.gridSize : RuntimeConfig::GridSize;
+	RuntimeConfig::IndexSize = options.indexSize > 0 ? options.indexSize : RuntimeConfig::IndexSize;
 
 	cout << "#threads: " << RuntimeConfig::MaxThreadCount << endl;
 	cout << "#batch size: " << RuntimeConfig::MaxBatchSize << endl;
 	cout << "#points per chunk: " << RuntimeConfig::MaxPointsPerChunk << endl;
 	cout << "#grid size: " << RuntimeConfig::GridSize << endl;
+	cout << "#index size: " << RuntimeConfig::IndexSize << endl;
 
 	auto [name, sources] = curateSources(options.source);
 	if (options.name.size() == 0)
