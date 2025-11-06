@@ -56,6 +56,13 @@ Potree.loadPointCloud(url).then(e => {
 
 ```
 
+# Advanced Runtime Tuning
+- `--thread-count <number>`: Forces the number of worker threads instead of auto-detecting CPU cores. Lower the value when sharing hardware to reduce contention, or raise it on systems where logical cores are hidden from the OS.
+- `--batch-size <points>`: Caps the number of points each worker loads in one pass (default `100000`). Increase to squeeze more throughput when plenty of RAM is available; decrease to avoid spikes in memory usage during chunking.
+- `--points-size <points>`: Sets the maximum number of points written to a single chunk file (default `500000`). Smaller values generate more, lighter chunks that stream faster over slow networks, while larger values cut down on chunk count at the cost of higher per-chunk memory needs.
+- `--grid-size <power-of-two>`: Controls the resolution of the internal 3D grid used for load balancing and splitting (default `128`). Keep it as a power of two. Raising it helps distribute highly non-uniform clouds but grows the `gridSize³` counter array; lower it when RAM pressure outweighs the benefit.
+- `--index-size <points>`: Limits how many points the indexer retains per hierarchy node before forcing additional subdivision (default `5000`). Reduce it to keep metadata lean for latency-sensitive streaming; increase it to shrink the total node count if memory allows.
+
 # Alternatives
 
 PotreeConverter 2.0 produces a very different format than previous iterations. If you find issues, you can still try previous converters or alternatives:
