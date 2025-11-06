@@ -43,14 +43,6 @@ namespace fs = std::filesystem;
 
 namespace indexer{
 
-	//constexpr int numSampleThreads = 10;
-	//constexpr int numFlushThreads = 36;
-	int maxPointsPerChunk = RuntimeConfig::IndexSize;
-
-	inline int numSampleThreads() {
-		return getCpuData().numProcessors;
-	}
-
 	struct Hierarchy {
 		int64_t stepSize = 0;
 		vector<uint8_t> buffer;

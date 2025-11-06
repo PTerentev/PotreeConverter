@@ -11,12 +11,15 @@
 #include "DbgWriter.h"
 #include "brotli/encode.h"
 #include "HierarchyBuilder.h"
+#include "RuntimeConfig.h"
 
 using std::unique_lock;
 
 namespace indexer{
 
 	constexpr int hierarchyStepSize = 4;
+
+	int maxPointsPerChunk = RuntimeConfig::IndexSize;
 
 	struct Point {
 		double x;
@@ -299,7 +302,7 @@ namespace indexer{
 		};
 
 		string targetDir = this->targetDir;
-		TaskPool<LoadTask> pool(16, [targetDir](shared_ptr<LoadTask> task) {
+		TaskPool<LoadTask> pool(RuntimeConfig::MaxThreadCount, [targetDir](shared_ptr<LoadTask> task) {
 			string octreePath = targetDir + "/tmpChunkRoots.bin";
 
 			shared_ptr<Node> node = task->node;
@@ -1635,15 +1638,15 @@ void doIndexing(string targetDir, State& state, Options& options, Sampler& sampl
 	atomic_int64_t activeThreads = 0;
 	mutex mtx_nodes;
 	vector<shared_ptr<Node>> nodes;
-	int numThreads = numSampleThreads() + 4;
-	TaskPool<Task> pool(numThreads, [&onNodeCompleted, &onNodeDiscarded, &writeAndUnload, &state, &options, &activeThreads, tStart, &lastReport, &totalPoints, totalBytes, &pointsProcessed, chunks, &indexer, &nodes, &mtx_nodes, &sampler](auto task) {
+
+	TaskPool<Task> pool(RuntimeConfig::MaxThreadCount, [&onNodeCompleted, &onNodeDiscarded, &writeAndUnload, &state, &options, &activeThreads, tStart, &lastReport, &totalPoints, totalBytes, &pointsProcessed, chunks, &indexer, &nodes, &mtx_nodes, &sampler](auto task) {
 		
 		auto chunk = task->chunk;
 		auto chunkRoot = make_shared<Node>(chunk->id, chunk->min, chunk->max);
 		auto attributes = chunks->attributes;
 		int64_t bpp = attributes.bytes;
 
-		indexer.waitUntilWriterBacklogBelow(1'000);
+		indexer.waitUntilWriterBacklogBelow(500);
 		activeThreads++;
 
 		auto filesize = fs::file_size(chunk->file);

@@ -131,7 +131,7 @@ struct SamplerPoisson : public Sampler {
 			//int dbgSumChecks = 0;
 			//int dbgMaxChecks = 0;
 
-			auto checkAccept = [/*&dbgChecks, &dbgSumChecks,*/ &dbgNumAccepted, spacing, squaredSpacing, &squaredDistance, center /*, &numDistanceChecks*/](Point candidate) {
+			auto checkAccept = [/*&dbgChecks, &dbgSumChecks,*/ &dbgNumAccepted, spacing, squaredSpacing, &squaredDistance, center /*, &numDistanceChecks*/, &dbgAccepted](Point candidate) {
 
 				auto cx = candidate.x - center.x;
 				auto cy = candidate.y - center.y;

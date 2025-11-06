@@ -1134,7 +1134,7 @@ namespace chunker_countsort_laszip {
 					max = std::max(max, value);
 				}
 
-				if (unmergeable || sum > RuntimeConfig::MaxPointsPerChunk)
+				if (unmergeable || sum > RuntimeConfig::MaxPointsPerChunk) {
 
 					// finished chunks
 					for (int64_t j = 0; j < 8; j++) {
