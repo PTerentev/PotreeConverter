@@ -24,32 +24,40 @@
 #include "unsuck/unsuck.hpp"
 #include "unsuck/TaskPool.hpp"
 #include "structures.h"
+#include "RuntimeConfig.h"
 
 using json = nlohmann::json;
 
 using std::atomic_int64_t;
+using std::atomic_int64_t;
 using std::deque;
-using std::fstream;
-using std::function;
-using std::make_shared;
-using std::mutex;
-using std::shared_ptr;
 using std::string;
 using std::unordered_map;
+using std::function;
+using std::shared_ptr;
+using std::make_shared;
+using std::fstream;
+using std::mutex;
 
 namespace fs = std::filesystem;
 
-namespace indexer
-{
-	struct Hierarchy
-	{
+namespace indexer{
+
+	//constexpr int numSampleThreads = 10;
+	//constexpr int numFlushThreads = 36;
+	int maxPointsPerChunk = RuntimeConfig::IndexSize;
+
+	inline int numSampleThreads() {
+		return getCpuData().numProcessors;
+	}
+
+	struct Hierarchy {
 		int64_t stepSize = 0;
 		vector<uint8_t> buffer;
 		int64_t firstChunkSize = 0;
 	};
 
-	struct Chunk
-	{
+	struct Chunk {
 		Vector3 min;
 		Vector3 max;
 
@@ -57,29 +65,29 @@ namespace indexer
 		string id;
 	};
 
-	struct Chunks
-	{
+	struct Chunks {
 		vector<shared_ptr<Chunk>> list;
 		Vector3 min;
 		Vector3 max;
 		Attributes attributes;
 
-		Chunks(vector<shared_ptr<Chunk>> list, Vector3 min, Vector3 max)
-		{
+		Chunks(vector<shared_ptr<Chunk>> list, Vector3 min, Vector3 max) {
 			this->list = list;
 			this->min = min;
 			this->max = max;
 		}
+
 	};
 
 	shared_ptr<Chunks> getChunks(string pathIn);
 
+	
+
 	struct Indexer;
 
-	struct Writer
-	{
+	struct Writer {
 
-		Indexer *indexer = nullptr;
+		Indexer* indexer = nullptr;
 		int64_t capacity = 16 * 1024 * 1024;
 
 		// copy node data here first
@@ -94,26 +102,25 @@ namespace indexer
 
 		fstream fsOctree;
 
-		// thread tWrite;
+		//thread tWrite;
 
 		mutex mtx;
 
-		Writer(Indexer *indexer);
+		Writer(Indexer* indexer);
 
-		void writeAndUnload(Node *node);
+		void writeAndUnload(Node* node);
 
 		void launchWriterThread();
 
 		void closeAndWait();
 
 		int64_t backlogSizeMB();
+
 	};
 
-	struct HierarchyFlusher
-	{
+	struct HierarchyFlusher{
 
-		struct HNode
-		{
+		struct HNode{
 			string name;
 			int64_t byteOffset = 0;
 			int64_t byteSize = 0;
@@ -125,72 +132,63 @@ namespace indexer
 		unordered_map<string, int> chunks;
 		vector<HNode> buffer;
 
-		HierarchyFlusher(string path)
-		{
+		HierarchyFlusher(string path){
 			this->path = path;
 
 			this->clear();
 		}
 
-		void clear()
-		{
+		void clear(){
 			fs::remove_all(path);
 
 			fs::create_directories(path);
 		}
 
-		void write(Node *node, int hierarchyStepSize)
-		{
+		void write(Node* node, int hierarchyStepSize){
 			lock_guard<mutex> lock(mtx);
 
 			HNode hnode = {
-				.name = node->name,
+				.name       = node->name,
 				.byteOffset = node->byteOffset,
-				.byteSize = node->byteSize,
-				.numPoints = node->numPoints,
+				.byteSize   = node->byteSize,
+				.numPoints  = node->numPoints,
 			};
 
 			buffer.push_back(hnode);
 
-			if (buffer.size() > 10'000)
-			{
+			if(buffer.size() > 10'000){
 				this->write(buffer, hierarchyStepSize);
 				buffer.clear();
 			}
 		}
 
-		void flush(int hierarchyStepSize)
-		{
+		void flush(int hierarchyStepSize){
 			lock_guard<mutex> lock(mtx);
-
+			
 			this->write(buffer, hierarchyStepSize);
 			buffer.clear();
 		}
 
-		void write(vector<HNode> nodes, int hierarchyStepSize)
-		{
+		void write(vector<HNode> nodes, int hierarchyStepSize){
 
 			unordered_map<string, vector<HNode>> groups;
 
-			for (auto node : nodes)
-			{
+			for(auto node : nodes){
+
 
 				string key = node.name.substr(0, hierarchyStepSize + 1);
-				if (node.name.size() <= hierarchyStepSize + 1)
-				{
+				if(node.name.size() <= hierarchyStepSize + 1){
 					key = "r";
 				}
 
-				if (groups.find(key) == groups.end())
-				{
+				if(groups.find(key) == groups.end()){
 					groups[key] = vector<HNode>();
 				}
 
 				groups[key].push_back(node);
 
 				// add batch roots to batches (in addition to root batch)
-				if (node.name.size() == hierarchyStepSize + 1)
-				{
+				if(node.name.size() == hierarchyStepSize + 1){
 					groups[node.name].push_back(node);
 				}
 			}
@@ -207,29 +205,28 @@ namespace indexer
 			// };                              ===
 			//                                  48
 
-			for (auto [key, groupedNodes] : groups)
-			{
+			
+			for(auto [key, groupedNodes] : groups){
 
 				Buffer buffer(48 * groupedNodes.size());
 				stringstream ss;
 
-				for (int i = 0; i < groupedNodes.size(); i++)
-				{
+				for(int i = 0; i < groupedNodes.size(); i++){
 					auto node = groupedNodes[i];
 
 					auto name = node.name.c_str();
 					memset(buffer.data_u8 + 48 * i, ' ', 31);
 					memcpy(buffer.data_u8 + 48 * i, name, node.name.size());
-					buffer.set<uint32_t>(node.numPoints, 48 * i + 31);
+					buffer.set<uint32_t>(node.numPoints,  48 * i + 31);
 					buffer.set<uint64_t>(node.byteOffset, 48 * i + 35);
-					buffer.set<uint32_t>(node.byteSize, 48 * i + 43);
-					buffer.set<char>('\n', 48 * i + 47);
+					buffer.set<uint32_t>(node.byteSize,   48 * i + 43);
+					buffer.set<char    >('\n',             48 * i + 47);
 
-					ss << rightPad(name, 10, ' ')
-					   << leftPad(to_string(node.numPoints), 8, ' ')
-					   << leftPad(to_string(node.byteOffset), 12, ' ')
-					   << leftPad(to_string(node.byteSize), 12, ' ')
-					   << endl;
+					ss << rightPad(name, 10, ' ') 
+						<< leftPad(to_string(node.numPoints), 8, ' ')
+						<< leftPad(to_string(node.byteOffset), 12, ' ')
+						<< leftPad(to_string(node.byteSize), 12, ' ')
+						<< endl;
 				}
 
 				string filepath = path + "/" + key + ".bin";
@@ -237,63 +234,55 @@ namespace indexer
 				fout.write(buffer.data_char, buffer.size);
 				fout.close();
 
-				if (chunks.find(key) == chunks.end())
-				{
+				if(chunks.find(key) == chunks.end()){
 					chunks[key] = 0;
 				}
 
 				chunks[key] += groupedNodes.size();
 			}
+
 		}
+
 	};
 
-	struct HierarchyChunk
-	{
+	struct HierarchyChunk {
 		string name = "";
-		vector<Node *> nodes;
+		vector<Node*> nodes;
 	};
 
-	struct FlushedChunkRoot
-	{
+	struct FlushedChunkRoot {
 		shared_ptr<Node> node;
 		int64_t offset = 0;
 		int64_t size = 0;
 	};
 
-	struct CRNode
-	{
+	struct CRNode{
 		string name = "";
-		Node *node;
+		Node* node;
 		vector<shared_ptr<CRNode>> children;
 		vector<FlushedChunkRoot> fcrs;
 		int numPoints = 0;
 
-		CRNode()
-		{
+		CRNode(){
 			children.resize(8, nullptr);
 		}
 
-		void traverse(function<void(CRNode *)> callback)
-		{
+		void traverse(function<void(CRNode*)> callback) {
 			callback(this);
 
-			for (auto child : children)
-			{
+			for (auto child : children) {
 
-				if (child != nullptr)
-				{
+				if (child != nullptr) {
 					child->traverse(callback);
 				}
+
 			}
 		}
 
-		void traversePost(function<void(CRNode *)> callback)
-		{
-			for (auto child : children)
-			{
+		void traversePost(function<void(CRNode*)> callback) {
+			for (auto child : children) {
 
-				if (child != nullptr)
-				{
+				if (child != nullptr) {
 					child->traversePost(callback);
 				}
 			}
@@ -301,12 +290,9 @@ namespace indexer
 			callback(this);
 		}
 
-		bool isLeaf()
-		{
-			for (auto child : children)
-			{
-				if (child != nullptr)
-				{
+		bool isLeaf() {
+			for (auto child : children) {
+				if (child != nullptr) {
 					return false;
 				}
 			}
@@ -315,8 +301,7 @@ namespace indexer
 		}
 	};
 
-	struct Indexer
-	{
+	struct Indexer{
 
 		string targetDir = "";
 
@@ -340,7 +325,7 @@ namespace indexer
 		mutex mtx_depth;
 		int64_t octreeDepth = 0;
 
-		// shared_ptr<TaskPool<FlushTask>> flushPool;
+		//shared_ptr<TaskPool<FlushTask>> flushPool;
 		atomic_int64_t bytesInMemory = 0;
 		atomic_int64_t bytesToWrite = 0;
 		atomic_int64_t bytesWritten = 0;
@@ -349,8 +334,7 @@ namespace indexer
 		fstream fChunkRoots;
 		vector<FlushedChunkRoot> flushedChunkRoots;
 
-		Indexer(string targetDir)
-		{
+		Indexer(string targetDir) {
 
 			this->targetDir = targetDir;
 
@@ -361,8 +345,7 @@ namespace indexer
 			fChunkRoots.open(chunkRootFile, ios::out | ios::binary);
 		}
 
-		~Indexer()
-		{
+		~Indexer() {
 			fChunkRoots.close();
 		}
 
@@ -370,13 +353,13 @@ namespace indexer
 
 		void waitUntilMemoryBelow(int maxMegabytes);
 
-		string createMetadata(Options options, State &state, Hierarchy hierarchy);
+		string createMetadata(Options options, State& state, Hierarchy hierarchy);
 
 		string createDebugHierarchy();
 
-		HierarchyChunk gatherChunk(Node *start, int levels);
+		HierarchyChunk gatherChunk(Node* start, int levels);
 
-		vector<HierarchyChunk> createHierarchyChunks(Node *root, int hierarchyStepSize);
+		vector<HierarchyChunk> createHierarchyChunks(Node* root, int hierarchyStepSize);
 
 		Hierarchy createHierarchy(string path);
 
@@ -387,14 +370,14 @@ namespace indexer
 		vector<CRNode> processChunkRoots();
 	};
 
-	class punct_facet : public std::numpunct<char>
-	{
+	class punct_facet : public std::numpunct<char> {
 	protected:
 		char do_decimal_point() const { return '.'; };
 		char do_thousands_sep() const { return '\''; };
 		string do_grouping() const { return "\3"; }
 	};
 
-	void doIndexing(string targetDir, State &state, Options &options, Sampler &sampler);
+	void doIndexing(string targetDir, State& state, Options& options, Sampler& sampler);
+
 
 }

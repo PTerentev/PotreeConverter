@@ -5,23 +5,20 @@
 
 #include "converter_utils.h"
 
-using std::map;
 using std::thread;
+using std::map;
 
-struct Monitor
-{
+struct Monitor {
 	thread t;
 	bool stopRequested = false;
-	State *state = nullptr;
+	State* state = nullptr;
 	map<string, string> messages;
 
-	Monitor(State *state)
-	{
+	Monitor(State* state){
 		this->state = state;
 	}
 
-	void _print()
-	{
+	void _print(){
 		auto ram = getMemoryData();
 		auto CPU = getCpuData();
 		double GB = 1024.0 * 1024.0 * 1024.0;
@@ -37,50 +34,52 @@ struct Monitor
 		string strDuration = formatNumber(this->state->duration) + "s";
 		string strThroughput = formatNumber(throughput) + "MPs";
 
-		string strRAM = formatNumber(double(ram.virtual_usedByProcess) / GB, 1) + "GB (highest " + formatNumber(double(ram.virtual_usedByProcess_max) / GB, 1) + "GB)";
+		string strRAM = formatNumber(double(ram.virtual_usedByProcess) / GB, 1)
+			+ "GB (highest " + formatNumber(double(ram.virtual_usedByProcess_max) / GB, 1) + "GB)";
 		string strCPU = formatNumber(CPU.usage) + "%";
 
 		stringstream ss;
 		ss << "[" << strProgressTotal << ", " << strTime << "], "
-		   << "[" << this->state->name << ": " << strProgressPass
-		   << ", duration: " << strDuration
-		   << ", throughput: " << strThroughput << "]"
-		   << "[RAM: " << strRAM << ", CPU: " << strCPU << "]" << endl;
+			<< "[" << this->state->name << ": " << strProgressPass 
+			<< ", duration: " << strDuration 
+			<< ", throughput: " << strThroughput << "]"
+			<< "[RAM: " << strRAM << ", CPU: " << strCPU << "]" << endl;
 
 		cout << ss.str() << std::flush;
+
 	}
 
-	void start()
-	{
+	void start(){
 
-		Monitor *_this = this;
-		this->t = thread([_this]()
-						 {
-							 using namespace std::chrono_literals;
+		Monitor* _this = this;
+		this->t = thread([_this]() {
 
-							 std::this_thread::sleep_for(1'000ms);
+			using namespace std::chrono_literals;
 
-							 cout << endl;
+			std::this_thread::sleep_for(1'000ms);
+			
+			cout << endl;
 
-							 while (!_this->stopRequested)
-							 {
+			while (!_this->stopRequested) {
 
-								 _this->_print();
+				_this->_print();
 
-								 std::this_thread::sleep_for(1'000ms);
-							 }
-						 });
+				std::this_thread::sleep_for(1'000ms);
+			}
+
+		});
+
 	}
 
-	void print(string key, string message)
-	{
+	void print(string key, string message){
+
 	}
 
-	void stop()
-	{
+	void stop() {
 
 		stopRequested = true;
 
 		t.join();
 	}
+
 };

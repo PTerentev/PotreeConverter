@@ -9,10 +9,9 @@
 
 using std::string;
 
-namespace ChunkRefiner
-{
-	struct Chunk
-	{
+namespace ChunkRefiner {
+
+	struct Chunk {
 		Vector3 min;
 		Vector3 max;
 
@@ -20,23 +19,21 @@ namespace ChunkRefiner
 		string id;
 	};
 
-	struct Chunks
-	{
+	struct Chunks {
 		vector<shared_ptr<Chunk>> list;
 		Vector3 min;
 		Vector3 max;
 		Attributes attributes;
 
-		Chunks(vector<shared_ptr<Chunk>> list, Vector3 min, Vector3 max)
-		{
+		Chunks(vector<shared_ptr<Chunk>> list, Vector3 min, Vector3 max) {
 			this->list = list;
 			this->min = min;
 			this->max = max;
 		}
+
 	};
 
-	shared_ptr<Chunks> getChunks(string pathIn)
-	{
+	shared_ptr<Chunks> getChunks(string pathIn) {
 		string chunkDirectory = pathIn + "/chunks";
 
 		string metadataText = readTextFile(chunkDirectory + "/metadata.json");
@@ -45,17 +42,18 @@ namespace ChunkRefiner
 		Vector3 min = {
 			js["min"][0].get<double>(),
 			js["min"][1].get<double>(),
-			js["min"][2].get<double>()};
+			js["min"][2].get<double>()
+		};
 
 		Vector3 max = {
 			js["max"][0].get<double>(),
 			js["max"][1].get<double>(),
-			js["max"][2].get<double>()};
+			js["max"][2].get<double>()
+		};
 
 		vector<Attribute> attributeList;
 		auto jsAttributes = js["attributes"];
-		for (auto jsAttribute : jsAttributes)
-		{
+		for (auto jsAttribute : jsAttributes) {
 
 			string name = jsAttribute["name"];
 			string description = jsAttribute["description"];
@@ -78,11 +76,11 @@ namespace ChunkRefiner
 		double offsetZ = js["offset"][2];
 
 		Attributes attributes(attributeList);
-		attributes.posScale = {scaleX, scaleY, scaleZ};
-		attributes.posOffset = {offsetX, offsetY, offsetZ};
+		attributes.posScale = { scaleX, scaleY, scaleZ };
+		attributes.posOffset = { offsetX, offsetY, offsetZ };
 
-		auto toID = [](string filename) -> string
-		{
+
+		auto toID = [](string filename) -> string {
 			string strID = stringReplace(filename, "chunk_", "");
 			strID = stringReplace(strID, ".bin", "");
 
@@ -90,13 +88,11 @@ namespace ChunkRefiner
 		};
 
 		vector<shared_ptr<Chunk>> chunksToLoad;
-		for (const auto &entry : fs::directory_iterator(chunkDirectory))
-		{
+		for (const auto& entry : fs::directory_iterator(chunkDirectory)) {
 			string filename = entry.path().filename().string();
 			string chunkID = toID(filename);
 
-			if (!iEndsWith(filename, ".bin"))
-			{
+			if (!iEndsWith(filename, ".bin")) {
 				continue;
 			}
 
@@ -104,10 +100,9 @@ namespace ChunkRefiner
 			chunk->file = entry.path().string();
 			chunk->id = chunkID;
 
-			BoundingBox box = {min, max};
+			BoundingBox box = { min, max };
 
-			for (int i = 1; i < chunkID.size(); i++)
-			{
+			for (int i = 1; i < chunkID.size(); i++) {
 				int index = chunkID[i] - '0'; // this feels so wrong...
 
 				box = childBoundingBoxOf(box.min, box.max, index);
@@ -125,8 +120,7 @@ namespace ChunkRefiner
 		return chunks;
 	}
 
-	void refineChunk(shared_ptr<Chunk> chunk, Attributes attributes)
-	{
+	void refineChunk(shared_ptr<Chunk> chunk, Attributes attributes) {
 
 		cout << "refine " << chunk->id << endl;
 
@@ -135,15 +129,13 @@ namespace ChunkRefiner
 		int64_t gridSize = RuntimeConfig::GridSize;
 		vector<std::atomic_int32_t> counters(gridSize * gridSize * gridSize);
 
-		struct Task
-		{
+		struct Task{
 			int64_t start = 0;
 			int64_t size = 0;
 			int64_t numPoints = 0;
 		};
 
-		TaskPool<Task> pool(RuntimeConfig::MaxThreadCount, [chunk, &chunkParts, attributes, &counters, gridSize](auto task)
-							{
+		TaskPool<Task> pool(RuntimeConfig::MaxThreadCount, [chunk, &chunkParts, attributes, &counters, gridSize](auto task){
 			vector<uint8_t> points = readBinaryFile(chunk->file, task->start, task->size);
 
 			auto min = chunk->min;
@@ -179,15 +171,15 @@ namespace ChunkRefiner
 				counters[index]++;
 			}
 
-			chunkParts.push_back(std::move(points)); });
+			chunkParts.push_back(std::move(points));
+		});
 
 		int64_t filesize = fs::file_size(chunk->file);
 		int64_t numPoints = filesize / attributes.bytes;
 		int64_t pointsLeft = numPoints;
 
 		int64_t start = 0;
-		while (pointsLeft > 0)
-		{
+		while(pointsLeft > 0){
 			int64_t batchSize = std::min(RuntimeConfig::MaxBatchSize, pointsLeft);
 
 			auto task = make_shared<Task>();
@@ -198,7 +190,7 @@ namespace ChunkRefiner
 			pool.addTask(task);
 
 			start += batchSize * attributes.bytes;
-
+			
 			pointsLeft -= batchSize;
 		}
 
@@ -213,8 +205,8 @@ namespace ChunkRefiner
 		// }
 	}
 
-	void refine(string targetDir, State &state)
-	{
+	void refine(string targetDir, State& state) {
+		
 		printElapsedTime("refine start", 0);
 
 		auto chunks = getChunks(targetDir);
@@ -224,24 +216,28 @@ namespace ChunkRefiner
 
 		vector<shared_ptr<Chunk>> tooLargeChunks;
 
-		for (auto chunk : chunks->list)
-		{
+		for (auto chunk : chunks->list) {
 			auto filesize = fs::file_size(chunk->file);
 
-			if (filesize > maxFilesize)
-			{
+			if (filesize > maxFilesize) {
 				tooLargeChunks.push_back(chunk);
 
 				cout << chunk->file << endl;
 			}
+
 		}
 
-		for (auto chunk : tooLargeChunks)
-		{
+		for (auto chunk : tooLargeChunks) {
 			refineChunk(chunk, chunks->attributes);
 		}
 
 		printElapsedTime("refine end", 0);
+		
+
+
 	}
 
+
 }
+
+
