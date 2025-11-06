@@ -241,7 +241,7 @@ namespace indexer{
 
 		// recursively merge leaves if sum(points) < threshold
 		auto cr_root = nodesMap["r"];
-		static int64_t threshold = 5'000'000;
+		static int64_t threshold = 1'000'000;
 
 		cr_root->traversePost([](CRNode* node){
 			
@@ -1646,7 +1646,7 @@ void doIndexing(string targetDir, State& state, Options& options, Sampler& sampl
 		auto attributes = chunks->attributes;
 		int64_t bpp = attributes.bytes;
 
-		indexer.waitUntilWriterBacklogBelow(500);
+		indexer.waitUntilWriterBacklogBelow(250);
 		activeThreads++;
 
 		auto filesize = fs::file_size(chunk->file);
